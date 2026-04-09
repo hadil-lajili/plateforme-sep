@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════════════
+   ADMIN PAGE — Neuro Predict MS
+   Panneau d'administration pour validation des comptes
+   Auteur: Wiem Saafi | NeuroNova Team
+   ═══════════════════════════════════════════════════════════════ */
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
