@@ -26,3 +26,20 @@ dist/
 Thumbs.db
 *.log
 backend/ai/RSANet/
+
+# Checkpoints modeles
+*.pth
+*.pkl
+*.npz
+*.zip
+*.dcm
+backend/checkpoints_v2/
+backend/models/
+backend/predictions/
+backend/predictions_v2/
+backend/debug_patches/
+backend/exploration_output/
+backend/figures/
+backend/logs/
+backend/logs_v2/
+backend/checkpoints/
