@@ -1,0 +1,28 @@
+# Datasets — trop volumineux
+data/
+
+# Modèles entraînés — trop lourds
+ai/checkpoints/
+ai/plots/
+
+# Variables d'environnement — contient mots de passe !
+.env
+backend/.env
+
+# Environnements Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Dépendances frontend
+node_modules/
+dist/
+.vite/
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+*.log
+backend/ai/RSANet/

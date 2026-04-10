@@ -1,0 +1,29 @@
+{
+  "feature_names": [
+    "lesion_volume_ml",
+    "n_lesions",
+    "mean_lesion_size_ml",
+    "max_lesion_size_ml",
+    "lesion_brain_ratio",
+    "mean_lesion_intensity",
+    "max_lesion_intensity",
+    "asymmetry",
+    "upper_third_ratio",
+    "brain_volume_ml",
+    "volume_change_ml",
+    "volume_change_pct",
+    "lesion_count_change",
+    "new_lesions_rate",
+    "age",
+    "sex",
+    "disease_duration_years",
+    "edss",
+    "sep_type",
+    "relapse_count_2y",
+    "treatment_line",
+    "t25fw_seconds",
+    "nhpt_seconds"
+  ],
+  "n_features": 23,
+  "auc_roc": 0.9156577885391445
+}

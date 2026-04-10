@@ -1,0 +1,30 @@
+{
+  "model_type": "LSTM",
+  "input_size": 19,
+  "hidden_size": 32,
+  "num_layers": 1,
+  "feature_names": [
+    "lesion_volume_ml",
+    "n_lesions",
+    "mean_lesion_size_ml",
+    "max_lesion_size_ml",
+    "lesion_brain_ratio",
+    "mean_lesion_intensity",
+    "max_lesion_intensity",
+    "asymmetry",
+    "upper_third_ratio",
+    "brain_volume_ml",
+    "age",
+    "sex",
+    "disease_duration_years",
+    "edss",
+    "sep_type",
+    "relapse_count_2y",
+    "treatment_line",
+    "t25fw_seconds",
+    "nhpt_seconds"
+  ],
+  "max_seq_len": 5,
+  "auc_roc": 0.6905487804878049,
+  "accuracy": 0.48314606741573035
+}
