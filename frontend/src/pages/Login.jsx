@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════════════
+   LOGIN PAGE — Neuro Predict MS
+   Page de connexion avec animation orbitale et formulaire
+   Auteur: Wiem Saafi | NeuroNova Team
+   ═══════════════════════════════════════════════════════════════ */
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
