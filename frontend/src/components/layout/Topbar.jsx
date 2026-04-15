@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════════════
+   TOPBAR COMPONENT — Neuro Predict MS
+   Barre supérieure avec recherche, notifications et profil
+   Auteur: Wiem Saafi | NeuroNova Team
+   ═══════════════════════════════════════════════════════════════ */
 import { Bell, Search } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useLocation } from 'react-router-dom'
