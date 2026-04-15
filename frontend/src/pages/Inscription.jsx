@@ -1,3 +1,9 @@
+/* ═══════════════════════════════════════════════════════════════
+   INSCRIPTION PAGE — Neuro Predict MS
+   Formulaire d'inscription avec sélection de rôle interactive
+   (médecin, radiologue, laboratoire, patient)
+   Auteur: Wiem Saafi | NeuroNova Team
+   ═══════════════════════════════════════════════════════════════ */
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authService } from '../services/authService'
