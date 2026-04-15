@@ -1,3 +1,9 @@
+/* ═══════════════════════════════════════════════════════════════
+   HOME PAGE — Neuro Predict MS
+   Landing page premium avec hero animé, fonctionnalités IA,
+   rôles utilisateurs, statistiques et actualités SEP
+   Auteur: Wiem Saafi | NeuroNova Team
+   ═══════════════════════════════════════════════════════════════ */
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
