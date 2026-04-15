@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Layout from './components/layout/Layout'
+import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import PatientsList from './pages/patients/PatientsList'
 import PatientDetail from './pages/patients/PatientDetail'
@@ -29,7 +30,7 @@ import ActualitesSEP from './pages/patient/ActualitesSEP'
 function PrivateRoute({ children, roles }) {
   const { user, loading } = useAuth()
   if (loading) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Chargement...</div>
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/home" replace />
   if (roles && !roles.includes(user.role)) return <Navigate to="/dashboard" replace />
   return children
 }
@@ -37,6 +38,7 @@ function PrivateRoute({ children, roles }) {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/home" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/inscription" element={<Inscription />} />
       <Route path="/admin" element={<Navigate to="/admin/utilisateurs" replace />} />

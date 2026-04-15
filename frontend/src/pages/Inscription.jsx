@@ -93,7 +93,7 @@ export default function Inscription() {
             <Sparkles size={16} color="#fff" />
           </div>
           <span style={{ fontSize: '17px', fontWeight: 700, color: '#1a1d26', letterSpacing: '-0.02em' }}>
-            SEP Platform
+            Neuro Predict MS
           </span>
         </div>
 
@@ -108,7 +108,7 @@ export default function Inscription() {
             Créer un compte
           </h1>
           <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 28px' }}>
-            Rejoignez la plateforme médicale SEP
+            Rejoignez la plateforme médicale Neuro Predict MS
           </p>
 
           {error && (

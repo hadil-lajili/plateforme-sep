@@ -79,7 +79,7 @@ export default function Sidebar() {
       <div style={{ padding: '0 24px 28px', display: 'flex', alignItems: 'center', gap: '12px' }}>
         <img
           src="/logo-sep.png"
-          alt="SEP Platform"
+          alt="Neuro Predict MS"
           style={{ width: '42px', height: '42px', objectFit: 'contain', flexShrink: 0 }}
         />
         <div>
@@ -87,10 +87,10 @@ export default function Sidebar() {
             fontSize: '17px', fontWeight: 700, letterSpacing: '-0.02em',
             color: '#1a1d26',
           }}>
-            SEP Platform
+            Neuro Predict MS
           </div>
           <div style={{ fontSize: '10px', color: '#9ca3b0', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Intelligence Médicale
+            by NeuroNova
           </div>
         </div>
       </div>

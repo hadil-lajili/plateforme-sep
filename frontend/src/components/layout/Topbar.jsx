@@ -23,7 +23,7 @@ export default function Topbar() {
   const getTitle = () => {
     if (location.pathname.startsWith('/patients/')) return 'Détail patient'
     if (location.pathname.startsWith('/rapports/')) return 'Rapport IRM'
-    return PAGE_TITLES[location.pathname] || 'SEP Platform'
+    return PAGE_TITLES[location.pathname] || 'Neuro Predict MS'
   }
 
   return (

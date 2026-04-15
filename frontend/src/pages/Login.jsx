@@ -147,7 +147,7 @@ export default function Login() {
               <Sparkles size={16} color="#fff" />
             </div>
             <span style={{ fontSize: '17px', fontWeight: 700, color: '#1a1d26', letterSpacing: '-0.02em' }}>
-              SEP Platform
+              Neuro Predict MS
             </span>
           </div>
 
