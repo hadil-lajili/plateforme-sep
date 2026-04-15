@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════════════
+   SIDEBAR COMPONENT — Neuro Predict MS
+   Navigation latérale avec menus dynamiques par rôle utilisateur
+   Auteur: Wiem Saafi | NeuroNova Team
+   ═══════════════════════════════════════════════════════════════ */
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Brain, Activity,
