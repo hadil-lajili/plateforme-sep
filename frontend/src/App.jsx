@@ -1,3 +1,9 @@
+/* ═══════════════════════════════════════════════════════════════
+   APP.JSX — Neuro Predict MS
+   Router principal avec routes protégées par rôle
+   (médecin, radiologue, laboratoire, admin, patient)
+   Auteur: Wiem Saafi | NeuroNova Team
+   ═══════════════════════════════════════════════════════════════ */
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Layout from './components/layout/Layout'
