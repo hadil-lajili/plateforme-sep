@@ -5,8 +5,6 @@ import os
 import uuid
 import io
 import tempfile
-import nibabel as nib
-import numpy as np
 from bson import ObjectId
 from app.models.documents import IRMScan, Patient, VisiteClinique
 from app.core.auth import get_current_user
@@ -38,6 +36,7 @@ def serialize(irm: IRMScan) -> dict:
 
 
 def extraire_metadata_nii(contenu: bytes, nom_fichier: str) -> dict:
+    import nibabel as nib
     suffix = ".nii.gz" if nom_fichier.endswith(".nii.gz") else ".nii"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(contenu)
@@ -105,10 +104,25 @@ async def upload_irm(
         raise HTTPException(status_code=400, detail=f"Fichier trop volumineux : {taille_mb:.1f}MB. Maximum : {TAILLE_MAX_MB}MB")
 
     if format_ext in [".nii", ".nii.gz"]:
+        # Validation légère : vérifier la signature NIfTI sans charger le volume complet
         try:
-            metadata = extraire_metadata_nii(contenu, nom)
+            if format_ext == ".nii.gz":
+                import gzip
+                header_bytes = gzip.decompress(contenu[:1024])
+            else:
+                header_bytes = contenu[:348]
+            # Les fichiers NIfTI commencent avec sizeof_hdr = 348 (little-endian)
+            import struct
+            sizeof_hdr = struct.unpack_from('<i', header_bytes, 0)[0]
+            if sizeof_hdr not in (348, 540):
+                raise ValueError("Signature NIfTI invalide")
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Fichier NIfTI invalide ou corrompu : {str(e)}")
+        metadata = {
+            "format": "NIfTI",
+            "taille_mb": round(taille_mb, 2),
+            "nom_original": nom,
+        }
     else:
         import pydicom
         try:
@@ -313,6 +327,8 @@ async def comparer_irms(
         if not irm.gridfs_id:
             raise HTTPException(404, "Fichier IRM non disponible dans GridFS")
 
+        import nibabel as nib
+        import numpy as np
         nom_original = irm.metadata_dicom.get("nom_original", "")
         tmp_path = await lire_nii_depuis_gridfs(irm.gridfs_id, nom_original)
         try:
