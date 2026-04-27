@@ -36,7 +36,8 @@ class IRMScan(Document):
     patient_id: str
     visite_id: Optional[str] = None
     dicom_uid: str
-    fichier_path: str
+    fichier_path: Optional[str] = None
+    gridfs_id: Optional[str] = None
     sequence_type: Optional[str] = None
     metadata_dicom: dict = {}
     statut: str = "pending"

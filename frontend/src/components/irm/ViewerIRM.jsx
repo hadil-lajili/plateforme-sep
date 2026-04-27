@@ -40,7 +40,7 @@ export default function ViewerIRM({ patientId, irmId, sequenceType }) {
       const irmData = await checkResponse.json()
       
       // Vérifier si l'IRM a un fichier
-      if (!irmData.fichier_path && !irmData.fichier_url && !irmData.chemin_fichier) {
+      if (!irmData.gridfs_id) {
         setErreur("Aucun fichier IRM disponible pour cette IRM")
         setLoading(false)
         return

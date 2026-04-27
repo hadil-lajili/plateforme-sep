@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Trash2, Sparkles, Zap, Brain, MessageCircle } from 'lucide-react'
+import { Send, Bot, User, Trash2, Brain, Microscope, FlaskConical } from 'lucide-react'
 import api from '../services/api'
 import { patientService } from '../services/patientService'
 
@@ -165,15 +165,21 @@ export default function ChatIA() {
     setLoading(true)
 
     try {
+      // Send only the main content (not analyse) as history context
+      const histForApi = messages.slice(-10).map(m => ({ role: m.role, content: m.content }))
       const res = await api.post('/chat/message', {
         message: msg,
         patient_id: selectedPatient || null,
-        historique: messages.slice(-10),
+        historique: histForApi,
       })
-      setMessages([...newHistory, { role: 'assistant', content: res.data.reponse }])
+      setMessages([...newHistory, {
+        role: 'assistant',
+        content: res.data.reponse,
+        analyse: res.data.analyse || '',
+      }])
     } catch (err) {
       const detail = err.response?.data?.detail || "Erreur de connexion à l'IA."
-      setMessages([...newHistory, { role: 'assistant', content: `⚠️ ${detail}` }])
+      setMessages([...newHistory, { role: 'assistant', content: `⚠️ ${detail}`, analyse: '' }])
     } finally {
       setLoading(false)
     }
@@ -290,14 +296,27 @@ export default function ChatIA() {
         ) : (
           <>
             {messages.map((msg, i) => (
-              <div key={i} style={s.msgRow(msg.role === 'user')}>
-                <div style={s.avatar(msg.role === 'user')}>
-                  {msg.role === 'user'
-                    ? <User size={16} color="#93c5fd" />
-                    : <Bot size={16} color="#fff" />
-                  }
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                {msg.role === 'assistant' && msg.analyse && (
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', maxWidth: '70%' }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', border: '1px solid #c7d2fe' }}>
+                      <Brain size={14} color="#6366f1" />
+                    </div>
+                    <div style={{ padding: '10px 14px', borderRadius: '12px', background: '#fafbff', border: '1px solid #e0e7ff', fontSize: '12px', lineHeight: '1.6', color: '#6366f1', fontStyle: 'italic' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#818cf8', display: 'block', marginBottom: '4px' }}>Analyse</span>
+                      {msg.analyse}
+                    </div>
+                  </div>
+                )}
+                <div style={s.msgRow(msg.role === 'user')}>
+                  <div style={s.avatar(msg.role === 'user')}>
+                    {msg.role === 'user'
+                      ? <User size={16} color="#93c5fd" />
+                      : <Bot size={16} color="#fff" />
+                    }
+                  </div>
+                  <div style={s.bubble(msg.role === 'user')}>{msg.content}</div>
                 </div>
-                <div style={s.bubble(msg.role === 'user')}>{msg.content}</div>
               </div>
             ))}
             {loading && (
