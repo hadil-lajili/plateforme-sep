@@ -12,6 +12,7 @@ export default function ViewerIRM({ patientId, irmId, sequenceType }) {
   const [plein, setPlein] = useState(false)
 
   const token = localStorage.getItem('token')
+  const API_BASE = import.meta.env.VITE_API_URL || ''
 
   useEffect(() => {
     chargerViewer()
@@ -27,7 +28,7 @@ export default function ViewerIRM({ patientId, irmId, sequenceType }) {
     setErreur(null)
     try {
       // D'abord vérifier si l'IRM existe
-      const checkResponse = await fetch(`/api/patients/${patientId}/irm/${irmId}`, {
+      const checkResponse = await fetch(`${API_BASE}/api/patients/${patientId}/irm/${irmId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       
@@ -47,7 +48,7 @@ export default function ViewerIRM({ patientId, irmId, sequenceType }) {
       }
 
       // Vérifier si le fichier existe réellement
-      const fileResponse = await fetch(`/api/patients/${patientId}/irm/${irmId}/fichier`, {
+      const fileResponse = await fetch(`${API_BASE}/api/patients/${patientId}/irm/${irmId}/fichier`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       
@@ -74,7 +75,7 @@ export default function ViewerIRM({ patientId, irmId, sequenceType }) {
       await nv.attachToCanvas(canvasRef.current)
 
       // URL du fichier IRM via l'API
-      const url = `/api/patients/${patientId}/irm/${irmId}/fichier`
+      const url = `${API_BASE}/api/patients/${patientId}/irm/${irmId}/fichier`
 
       await nv.loadVolumes([{
         url,
