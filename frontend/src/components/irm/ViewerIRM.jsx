@@ -58,7 +58,7 @@ export default function ViewerIRM({ patientId, irmId, sequenceType }) {
         return
       }
 
-      const { Niivue } = await import('@niivue/niivue')
+      const { Niivue, SLICE_TYPE } = await import('@niivue/niivue')
 
       if (niivueRef.current) {
         niivueRef.current = null
@@ -101,15 +101,14 @@ export default function ViewerIRM({ patientId, irmId, sequenceType }) {
 
       // Configurer le mode
       if (mode === '3D') {
-        nv.setSliceType(nv.sliceTypeRender)
+        nv.setSliceType(SLICE_TYPE.RENDER)
       } else {
-        nv.setSliceType(nv.sliceTypeAxial)
+        nv.setSliceType(SLICE_TYPE.MULTIPLANAR)
       }
 
       const vol = nv.volumes[0]
-      if (vol) {
-        // dims[0]=nb_dims, dims[1]=x, dims[2]=y, dims[3]=z (coupes axiales)
-        const nz = vol.dims[3] || vol.dims[1] || 0
+      if (vol && vol.dims) {
+        const nz = vol.dims[3] ?? vol.dims[2] ?? 0
         setTotalSlices(nz)
         setSlice(Math.floor(nz / 2))
       }
