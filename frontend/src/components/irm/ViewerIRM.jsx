@@ -47,22 +47,23 @@ export default function ViewerIRM({ patientId, irmId, sequenceType }) {
         return
       }
 
-      // Vérifier si le fichier existe réellement
-      const fileResponse = await fetch(`${API_BASE}/api/patients/${patientId}/irm/${irmId}/fichier`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      
-      if (!fileResponse.ok) {
-        setErreur("Le fichier IRM n'est pas disponible")
-        setLoading(false)
-        return
-      }
-
       const { Niivue, SLICE_TYPE } = await import('@niivue/niivue')
 
       if (niivueRef.current) {
         niivueRef.current = null
       }
+
+      // Télécharger le fichier via fetch authentifié puis créer un blob URL local
+      const fichierResp = await fetch(`${API_BASE}/api/patients/${patientId}/irm/${irmId}/fichier`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!fichierResp.ok) {
+        setErreur("Impossible de télécharger le fichier IRM")
+        setLoading(false)
+        return
+      }
+      const blob = await fichierResp.blob()
+      const blobUrl = URL.createObjectURL(blob)
 
       const nv = new Niivue({
         show3Dcrosshair: true,
@@ -74,16 +75,14 @@ export default function ViewerIRM({ patientId, irmId, sequenceType }) {
       niivueRef.current = nv
       await nv.attachToCanvas(canvasRef.current)
 
-      // URL du fichier IRM via l'API
-      const url = `${API_BASE}/api/patients/${patientId}/irm/${irmId}/fichier`
-
+      const nomFichier = `${sequenceType || 'IRM'}.nii`
       await nv.loadVolumes([{
-        url,
-        name: `${sequenceType || 'IRM'}.nii`,
+        url: blobUrl,
+        name: nomFichier,
         colormap: 'gray',
         opacity: 1,
-        headers: { Authorization: `Bearer ${token}` }
       }])
+      URL.revokeObjectURL(blobUrl)
 
       // Auto-fenêtrage : percentiles 2%-98% pour éviter la saturation
       const vol0 = nv.volumes[0]
