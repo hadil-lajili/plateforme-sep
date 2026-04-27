@@ -104,22 +104,37 @@ async def upload_irm(
         raise HTTPException(status_code=400, detail=f"Fichier trop volumineux : {taille_mb:.1f}MB. Maximum : {TAILLE_MAX_MB}MB")
 
     if format_ext in [".nii", ".nii.gz"]:
-        # Validation légère : vérifier la signature NIfTI sans charger le volume complet
         try:
+            import struct, gzip as _gzip
+            # Décompresser uniquement si nécessaire pour lire le header (348 octets)
             if format_ext == ".nii.gz":
-                import gzip
-                header_bytes = gzip.decompress(contenu[:1024])
+                raw = _gzip.decompress(contenu)
+                header_bytes = raw[:348]
             else:
+                raw = contenu
                 header_bytes = contenu[:348]
-            # Les fichiers NIfTI commencent avec sizeof_hdr = 348 (little-endian)
-            import struct
+            # Valider signature NIfTI-1 (sizeof_hdr = 348)
             sizeof_hdr = struct.unpack_from('<i', header_bytes, 0)[0]
             if sizeof_hdr not in (348, 540):
                 raise ValueError("Signature NIfTI invalide")
+            # Lire les dimensions depuis le header (offset 40 : dim[8] en int16)
+            dims = struct.unpack_from('<8h', header_bytes, 40)
+            ndims = dims[0]
+            nx = dims[1] if ndims >= 1 else None
+            ny = dims[2] if ndims >= 2 else None
+            nz = dims[3] if ndims >= 3 else None
+            # Lire la résolution voxel (offset 76 : pixdim[8] en float32)
+            pixdims = struct.unpack_from('<8f', header_bytes, 76)
+            res = [round(float(pixdims[i+1]), 2) for i in range(min(3, ndims))]
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Fichier NIfTI invalide ou corrompu : {str(e)}")
         metadata = {
             "format": "NIfTI",
+            "nb_slices": nz,
+            "hauteur": ny,
+            "largeur": nx,
+            "dimensions": [nx, ny, nz],
+            "resolution_mm": res,
             "taille_mb": round(taille_mb, 2),
             "nom_original": nom,
         }
