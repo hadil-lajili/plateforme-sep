@@ -84,11 +84,33 @@ def get_lstm_model():
 # UTILITAIRES
 # ══════════════════════════════════════════════════════
 
-def _resoudre_chemin(irm):
-    chemin = irm.fichier_path
+async def _resoudre_chemin(irm):
+    """Retourne un chemin local vers le fichier IRM (depuis GridFS ou disque)."""
+    import tempfile
+    # Priorité : GridFS
+    if irm.gridfs_id:
+        from bson import ObjectId
+        from app.core.database import get_gridfs
+        try:
+            bucket = get_gridfs()
+            stream = await bucket.open_download_stream(ObjectId(irm.gridfs_id))
+            data = await stream.read()
+            nom = irm.metadata_dicom.get("nom_original", "irm.nii")
+            suffix = ".nii.gz" if nom.endswith(".nii.gz") else ".nii"
+            tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+            tmp.write(data)
+            tmp.close()
+            return tmp.name, True  # (chemin, est_temporaire)
+        except Exception as e:
+            print(f"Erreur lecture GridFS : {e}")
+            return None, False
+    # Fallback : disque (anciens fichiers)
+    chemin = irm.fichier_path or ""
     if not os.path.exists(chemin):
-        chemin = os.path.join(BASE_DIR, irm.fichier_path)
-    return chemin if os.path.exists(chemin) else None
+        chemin = os.path.join(BASE_DIR, chemin)
+    if os.path.exists(chemin):
+        return chemin, False
+    return None, False
 
 
 def _charger_volume(chemin):
@@ -120,12 +142,13 @@ async def classifier_sep_sain(irm_id: str, current_user=Depends(get_current_user
     if not irm:
         raise HTTPException(404, "IRM non trouvée")
 
-    chemin = _resoudre_chemin(irm)
+    chemin, is_tmp = await _resoudre_chemin(irm)
     if not chemin:
         raise HTTPException(404, "Fichier IRM introuvable")
 
     cls = get_cls_model()
     if cls is None:
+        if is_tmp: os.unlink(chemin)
         raise HTTPException(503, "Modèle classificateur non disponible")
 
     try:
@@ -192,6 +215,8 @@ async def classifier_sep_sain(irm_id: str, current_user=Depends(get_current_user
 
     except Exception as e:
         raise HTTPException(500, f"Erreur classification : {str(e)}")
+    finally:
+        if is_tmp and os.path.exists(chemin): os.unlink(chemin)
 
 
 @router.get("/sep-sain/{irm_id}")
@@ -219,16 +244,16 @@ async def predire_lesions_futures(
     if not irm_t1:
         raise HTTPException(404, "IRM T1 non trouvée")
 
-    chemin_t1 = _resoudre_chemin(irm_t1)
+    chemin_t1, t1_tmp = await _resoudre_chemin(irm_t1)
     if not chemin_t1:
         raise HTTPException(404, "Fichier IRM T1 introuvable")
 
     # Chercher IRM T0
-    chemin_t0 = None
+    chemin_t0, t0_tmp = None, False
     if irm_t0_id:
         irm_t0 = await IRMScan.get(irm_t0_id)
         if irm_t0:
-            chemin_t0 = _resoudre_chemin(irm_t0)
+            chemin_t0, t0_tmp = await _resoudre_chemin(irm_t0)
     else:
         autres = await IRMScan.find(
             IRMScan.patient_id == irm_t1.patient_id,
@@ -237,12 +262,13 @@ async def predire_lesions_futures(
         for candidat in autres:
             if str(candidat.id) == irm_id:
                 continue
-            c = _resoudre_chemin(candidat)
+            c, c_tmp = await _resoudre_chemin(candidat)
             if c:
-                chemin_t0 = c
+                chemin_t0, t0_tmp = c, c_tmp
                 break
 
     if chemin_t0 is None:
+        if t1_tmp and os.path.exists(chemin_t1): os.unlink(chemin_t1)
         raise HTTPException(400, "Aucune IRM T0 disponible. Uploadez une IRM antérieure.")
 
     pred = get_pred_model()
@@ -331,6 +357,9 @@ async def predire_lesions_futures(
 
     except Exception as e:
         raise HTTPException(500, f"Erreur U-Net : {str(e)}")
+    finally:
+        if t1_tmp and chemin_t1 and os.path.exists(chemin_t1): os.unlink(chemin_t1)
+        if t0_tmp and chemin_t0 and os.path.exists(chemin_t0): os.unlink(chemin_t0)
 
 
 @router.get("/prediction/{irm_id}")
@@ -365,33 +394,36 @@ async def predire_temporal(
     if not irm_t3:
         raise HTTPException(404, "IRM T3 non trouvée")
 
-    chemin_t3 = _resoudre_chemin(irm_t3)
+    chemin_t3, t3_tmp = await _resoudre_chemin(irm_t3)
     if not chemin_t3:
         raise HTTPException(404, "Fichier IRM T3 introuvable")
 
     # Chercher T1 et T2 automatiquement si non fournis
     chemins = []
+    tmp_flags = []
     if irm_t1_id and irm_t2_id:
         for mid in [irm_t1_id, irm_t2_id]:
             irm = await IRMScan.get(mid)
             if not irm:
                 raise HTTPException(404, f"IRM {mid} non trouvée")
-            c = _resoudre_chemin(irm)
+            c, c_tmp = await _resoudre_chemin(irm)
             if not c:
                 raise HTTPException(404, f"Fichier IRM {mid} introuvable")
             chemins.append(c)
+            tmp_flags.append(c_tmp)
         chemins.append(chemin_t3)
+        tmp_flags.append(t3_tmp)
     else:
-        # Chercher les 3 IRM les plus anciennes du patient
         toutes = await IRMScan.find(
             IRMScan.patient_id == irm_t3.patient_id,
             IRMScan.sequence_type == irm_t3.sequence_type,
         ).sort(+IRMScan.uploaded_at).to_list()
 
         for irm in toutes:
-            c = _resoudre_chemin(irm)
+            c, c_tmp = await _resoudre_chemin(irm)
             if c:
                 chemins.append(c)
+                tmp_flags.append(c_tmp)
             if len(chemins) == 3:
                 break
 
@@ -494,6 +526,9 @@ async def predire_temporal(
         import traceback
         traceback.print_exc()
         raise HTTPException(500, f"Erreur ConvLSTM : {str(e)}")
+    finally:
+        for c, is_t in zip(chemins, tmp_flags):
+            if is_t and c and os.path.exists(c): os.unlink(c)
 
 
 @router.get("/temporal/{irm_id}")
