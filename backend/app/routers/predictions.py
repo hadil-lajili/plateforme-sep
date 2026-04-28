@@ -28,7 +28,7 @@ def get_cls_model():
         try:
             from ai.models.resnet_classifier import ResNetSEPClassifier
             import torch
-            model = ResNetSEPClassifier(n_coupes=5)
+            model = ResNetSEPClassifier(n_coupes=5, pretrained=False)
             ckpt = torch.load(CHECKPOINT_CLS, map_location='cpu', weights_only=False)
             model.load_state_dict(ckpt['model_state_dict'])
             model.eval()

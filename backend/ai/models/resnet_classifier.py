@@ -11,19 +11,21 @@ class ResNetSEPClassifier(nn.Module):
     - Input : (B, N, 1, H, W) — N coupes par patient
     - Output : (B, 1) — probabilité SEP
     """
-    def __init__(self, n_coupes=5, freeze_backbone=False):
+    def __init__(self, n_coupes=5, freeze_backbone=False, pretrained=True):
         super().__init__()
 
-        # ResNet-50 pré-entraîné
-        resnet = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+        # ResNet-50 — poids ImageNet seulement si pretrained=True (entraînement)
+        # Pour l'inférence, pretrained=False : le checkpoint contient déjà tous les poids
+        weights = models.ResNet50_Weights.IMAGENET1K_V1 if pretrained else None
+        resnet = models.resnet50(weights=weights)
 
         # Adapter le premier conv pour 1 canal (IRM) au lieu de 3 (RGB)
         resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        # Initialiser avec la moyenne des 3 canaux originaux
-        with torch.no_grad():
-            resnet.conv1.weight = nn.Parameter(
-                resnet.conv1.weight.mean(dim=1, keepdim=True)
-            )
+        if pretrained:
+            with torch.no_grad():
+                resnet.conv1.weight = nn.Parameter(
+                    resnet.conv1.weight.mean(dim=1, keepdim=True)
+                )
 
         # Garder tout sauf la dernière couche FC
         self.backbone = nn.Sequential(*list(resnet.children())[:-1])  # → (B, 2048, 1, 1)
