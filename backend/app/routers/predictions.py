@@ -7,77 +7,48 @@ import os
 router = APIRouter()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CHECKPOINT_CLS  = os.path.join(BASE_DIR, "ai", "checkpoints", "resnet_classifier.pth")
-CHECKPOINT_PRED = os.path.join(BASE_DIR, "ai", "checkpoints", "predictor_lesions_v2.pth")
-CHECKPOINT_LSTM = os.path.join(BASE_DIR, "ai", "checkpoints", "convlstm_predictor_aug.pth")
+ONNX_CLS  = os.path.join(BASE_DIR, "ai", "checkpoints", "resnet_classifier.onnx")
+ONNX_PRED = os.path.join(BASE_DIR, "ai", "checkpoints", "predictor_lesions_v2.onnx")
+ONNX_LSTM = os.path.join(BASE_DIR, "ai", "checkpoints", "convlstm_predictor_aug.onnx")
 
-_cls_cache  = None
-_pred_cache = None
-_lstm_cache = None
+_cls_session  = None
+_pred_session = None
+_lstm_session = None
 
 
 # ══════════════════════════════════════════════════════
-# CHARGEMENT DES MODÈLES
+# CHARGEMENT DES SESSIONS ONNX
 # ══════════════════════════════════════════════════════
+
+def _onnx_session(path):
+    if not os.path.exists(path):
+        return None
+    try:
+        import onnxruntime as ort
+        sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+        print(f"  [ONNX] {os.path.basename(path)} chargé")
+        return sess
+    except Exception as e:
+        print(f"Erreur chargement ONNX {path}: {e}")
+        return None
 
 def get_cls_model():
-    global _cls_cache
-    if _cls_cache is None:
-        if not os.path.exists(CHECKPOINT_CLS):
-            return None
-        try:
-            from ai.models.resnet_classifier import ResNetSEPClassifier
-            import torch
-            model = ResNetSEPClassifier(n_coupes=5, pretrained=False)
-            ckpt = torch.load(CHECKPOINT_CLS, map_location='cpu', weights_only=False)
-            model.load_state_dict(ckpt['model_state_dict'])
-            model.eval()
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            _cls_cache = (model.to(device), device)
-        except Exception as e:
-            print(f"Erreur chargement ResNet : {e}")
-            return None
-    return _cls_cache
-
+    global _cls_session
+    if _cls_session is None:
+        _cls_session = _onnx_session(ONNX_CLS)
+    return _cls_session
 
 def get_pred_model():
-    global _pred_cache
-    if _pred_cache is None:
-        if not os.path.exists(CHECKPOINT_PRED):
-            return None
-        try:
-            from ai.models.unet_predictor import UNetPredictor
-            import torch
-            model = UNetPredictor(in_channels=2)
-            ckpt = torch.load(CHECKPOINT_PRED, map_location='cpu', weights_only=False)
-            model.load_state_dict(ckpt['model_state_dict'])
-            model.eval()
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            _pred_cache = (model.to(device), device)
-        except Exception as e:
-            print(f"Erreur chargement U-Net : {e}")
-            return None
-    return _pred_cache
-
+    global _pred_session
+    if _pred_session is None:
+        _pred_session = _onnx_session(ONNX_PRED)
+    return _pred_session
 
 def get_lstm_model():
-    global _lstm_cache
-    if _lstm_cache is None:
-        if not os.path.exists(CHECKPOINT_LSTM):
-            return None
-        try:
-            from ai.models.convlstm_predictor import ConvLSTMPredictor
-            import torch
-            model = ConvLSTMPredictor(in_channels=1, hidden_channels=32, n_timesteps=3)
-            ckpt = torch.load(CHECKPOINT_LSTM, map_location='cpu', weights_only=False)
-            model.load_state_dict(ckpt['model_state_dict'])
-            model.eval()
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            _lstm_cache = (model.to(device), device)
-        except Exception as e:
-            print(f"Erreur chargement ConvLSTM : {e}")
-            return None
-    return _lstm_cache
+    global _lstm_session
+    if _lstm_session is None:
+        _lstm_session = _onnx_session(ONNX_LSTM)
+    return _lstm_session
 
 
 # ══════════════════════════════════════════════════════
@@ -146,22 +117,18 @@ async def classifier_sep_sain(irm_id: str, current_user=Depends(get_current_user
     if not chemin:
         raise HTTPException(404, "Fichier IRM introuvable")
 
-    cls = get_cls_model()
-    if cls is None:
+    session = get_cls_model()
+    if session is None:
         if is_tmp: os.unlink(chemin)
         raise HTTPException(503, "Modèle classificateur non disponible")
 
     try:
-        import torch
         import numpy as np
         from PIL import Image
 
-        model, device = cls
         data = _charger_volume(chemin)
         n = data.shape[2] if len(data.shape) == 3 else 1
 
-        # Sélection des 5 coupes avec le plus de signal hyperintense (proxy lésions FLAIR)
-        # Simule la sélection par masque utilisée à l'entraînement
         seuil = data.mean() + 1.5 * data.std()
         scores_coupes = []
         for i in range(n):
@@ -170,20 +137,18 @@ async def classifier_sep_sain(irm_id: str, current_user=Depends(get_current_user
         scores_coupes.sort(reverse=True)
         indices_actifs = [s[1] for s in scores_coupes[:5]]
 
-        # Évaluer aussi plusieurs fenêtres uniformes et prendre le max
         indices_uniform = np.linspace(0, n - 1, 20, dtype=int).tolist()
         tous_indices = list(set(indices_actifs + indices_uniform))
 
-        # Découper en batches de 5 et prendre le score max
         scores_batches = []
         for start in range(0, len(tous_indices), 5):
             batch_idx = tous_indices[start:start + 5]
             while len(batch_idx) < 5:
                 batch_idx.append(batch_idx[-1])
             coupes = [_prep_coupe(data, int(idx), size=224) for idx in batch_idx]
-            tensor_b = torch.tensor(np.stack(coupes)).unsqueeze(1).unsqueeze(0).to(device)
-            with torch.no_grad():
-                scores_batches.append(model(tensor_b).item())
+            arr = np.stack(coupes)[np.newaxis, :, np.newaxis, :, :].astype(np.float32)
+            output = session.run(None, {"input": arr})[0]
+            scores_batches.append(float(output[0, 0]))
 
         score = max(scores_batches)
 
@@ -271,18 +236,16 @@ async def predire_lesions_futures(
         if t1_tmp and os.path.exists(chemin_t1): os.unlink(chemin_t1)
         raise HTTPException(400, "Aucune IRM T0 disponible. Uploadez une IRM antérieure.")
 
-    pred = get_pred_model()
-    if pred is None:
+    session = get_pred_model()
+    if session is None:
         raise HTTPException(503, "Modèle U-Net non disponible")
 
     try:
-        import torch
         import numpy as np
         from PIL import Image
         import base64
         import io
 
-        model, device = pred
         data_t0 = _charger_volume(chemin_t0)
         data_t1 = _charger_volume(chemin_t1)
         n = data_t1.shape[2] if len(data_t1.shape) == 3 else 1
@@ -294,13 +257,11 @@ async def predire_lesions_futures(
             coupe_t0 = _prep_coupe(data_t0, int(idx), size=256)
             coupe_t1 = _prep_coupe(data_t1, int(idx), size=256)
 
-            tensor = torch.tensor(np.stack([coupe_t0, coupe_t1])).unsqueeze(0).to(device)
-            with torch.no_grad():
-                seg_out, cls_out = model(tensor)
-
-            seg_np = seg_out.squeeze().cpu().numpy()
+            arr = np.stack([coupe_t0, coupe_t1])[np.newaxis].astype(np.float32)
+            seg_np, cls_out = session.run(None, {"input": arr})
+            seg_np = seg_np.squeeze()
             seg_preds.append(seg_np)
-            cls_preds.append(cls_out.item())
+            cls_preds.append(float(cls_out[0, 0]))
 
             # Visualisation
             t1_uint8 = ((coupe_t1 - coupe_t1.min()) /
@@ -435,20 +396,16 @@ async def predire_temporal(
             f"Uploadez des IRM supplémentaires."
         )
 
-    lstm = get_lstm_model()
-    if lstm is None:
+    session = get_lstm_model()
+    if session is None:
         raise HTTPException(503, "Modèle ConvLSTM non disponible")
 
     try:
-        import torch
         import numpy as np
         from PIL import Image
         import base64
         import io
 
-        model, device = lstm
-
-        # Charger les 3 volumes
         vols = [_charger_volume(c) for c in chemins[:3]]
         n = min(v.shape[2] if len(v.shape) == 3 else 1 for v in vols)
         indices = np.linspace(n//4, 3*n//4, 10, dtype=int)
@@ -457,16 +414,9 @@ async def predire_temporal(
         images_base64 = []
 
         for idx in indices:
-            # Extraire coupe de chaque timepoint → (3, 1, 128, 128)
             coupes = [_prep_coupe(v, int(idx), size=128) for v in vols]
-            tensor = torch.tensor(
-                np.stack(coupes, axis=0)
-            ).unsqueeze(1).unsqueeze(0).to(device)  # (1, 3, 1, 128, 128)
-
-            with torch.no_grad():
-                seg_out = model(tensor)
-
-            seg_np = seg_out.squeeze().cpu().numpy()
+            arr = np.stack(coupes)[np.newaxis, :, np.newaxis, :, :].astype(np.float32)  # (1, 3, 1, 128, 128)
+            seg_np = session.run(None, {"input": arr})[0].squeeze()
             seg_preds.append(seg_np)
 
             # Visualisation — IRM T3 + lésions prédites en rouge
@@ -555,17 +505,15 @@ async def get_lesions_3d(irm_id: str, current_user=Depends(get_current_user)):
     if not chemin:
         raise HTTPException(404, "Fichier IRM introuvable")
 
-    pred = get_pred_model()
-    if pred is None:
+    session = get_pred_model()
+    if session is None:
         if is_tmp and os.path.exists(chemin): os.unlink(chemin)
         raise HTTPException(503, "Modèle non disponible")
 
     try:
-        import torch
         import numpy as np
         from PIL import Image
 
-        model, device = pred
         data = _charger_volume(chemin)
         n = data.shape[2] if len(data.shape) == 3 else 1
         RENDER_SIZE = 128
@@ -575,12 +523,8 @@ async def get_lesions_3d(irm_id: str, current_user=Depends(get_current_user)):
 
         for idx in range(0, n, 3):
             coupe_256 = _prep_coupe(data, idx, size=256)
-            tensor = torch.tensor(np.stack([coupe_256, coupe_256])).unsqueeze(0).to(device)
-
-            with torch.no_grad():
-                seg_out, _ = model(tensor)
-
-            seg_np = seg_out.squeeze().cpu().numpy()
+            arr = np.stack([coupe_256, coupe_256])[np.newaxis].astype(np.float32)
+            seg_np = session.run(None, {"input": arr})[0].squeeze()
             seg_resized = np.array(
                 Image.fromarray(seg_np).resize((RENDER_SIZE, RENDER_SIZE), Image.BILINEAR),
                 dtype=np.float32
@@ -672,8 +616,8 @@ async def viewer_coupe_overlay(irm_id: str, idx: int, current_user=Depends(get_c
     if not chemin_t1:
         raise HTTPException(404, "Fichier IRM introuvable")
 
-    pred = get_pred_model()
-    if pred is None:
+    session = get_pred_model()
+    if session is None:
         if t1_tmp and os.path.exists(chemin_t1): os.unlink(chemin_t1)
         raise HTTPException(503, "Modèle IA non disponible")
 
@@ -694,10 +638,9 @@ async def viewer_coupe_overlay(irm_id: str, idx: int, current_user=Depends(get_c
             break
 
     try:
-        import torch, numpy as np, io, base64
+        import numpy as np, io, base64
         from PIL import Image
 
-        model, device = pred
         data_t0 = _charger_volume(chemin_t0)
         data_t1 = _charger_volume(chemin_t1)
         n = data_t1.shape[2] if len(data_t1.shape) == 3 else 1
@@ -705,12 +648,8 @@ async def viewer_coupe_overlay(irm_id: str, idx: int, current_user=Depends(get_c
 
         coupe_t0 = _prep_coupe(data_t0, idx, size=256)
         coupe_t1 = _prep_coupe(data_t1, idx, size=256)
-        tensor = torch.tensor(np.stack([coupe_t0, coupe_t1])).unsqueeze(0).to(device)
-
-        with torch.no_grad():
-            seg_out, _ = model(tensor)
-
-        seg_np = seg_out.squeeze().cpu().numpy()
+        arr = np.stack([coupe_t0, coupe_t1])[np.newaxis].astype(np.float32)
+        seg_np = session.run(None, {"input": arr})[0].squeeze()
         t1_uint8 = ((coupe_t1 - coupe_t1.min()) / (coupe_t1.max() - coupe_t1.min() + 1e-6) * 255).astype(np.uint8)
         masque_bin = (seg_np > 0.5).astype(np.uint8)
         n_lesions = int(masque_bin.sum())

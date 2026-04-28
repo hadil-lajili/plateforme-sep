@@ -18,9 +18,9 @@ GITHUB_RELEASE_BASE = os.getenv(
 )
 
 CHECKPOINT_NAMES = [
-    "resnet_classifier.pth",
-    "predictor_lesions_v2.pth",
-    "convlstm_predictor_aug.pth",
+    "resnet_classifier.onnx",
+    "predictor_lesions_v2.onnx",
+    "convlstm_predictor_aug.onnx",
 ]
 
 async def _telecharger_checkpoints():
