@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Eye, EyeOff, Loader, X, Maximize2, Minimize2
 export default function ViewerCompletIA({ irmId, onClose }) {
   const token = localStorage.getItem('token')
   const headers = { Authorization: `Bearer ${token}` }
+  const API_BASE = import.meta.env.VITE_API_URL || ''
 
   const [nCoupes, setNCoupes] = useState(0)
   const [slice, setSlice] = useState(0)
@@ -20,7 +21,7 @@ export default function ViewerCompletIA({ irmId, onClose }) {
 
   // Charger infos au montage
   useEffect(() => {
-    fetch(`/api/predictions/viewer/${irmId}/info`, { headers })
+    fetch(`${API_BASE}/api/predictions/viewer/${irmId}/info`, { headers })
       .then(r => r.json())
       .then(d => {
         setNCoupes(d.n_coupes || 0)
@@ -34,7 +35,7 @@ export default function ViewerCompletIA({ irmId, onClose }) {
     if (!nCoupes) return
     setOrigSrc(null)
     setOrigLoading(true)
-    fetch(`/api/predictions/viewer/${irmId}/coupe/${slice}`, { headers })
+    fetch(`${API_BASE}/api/predictions/viewer/${irmId}/coupe/${slice}`, { headers })
       .then(r => r.json())
       .then(d => { setOrigSrc(d.image); setOrigLoading(false) })
       .catch(() => setOrigLoading(false))
@@ -47,7 +48,7 @@ export default function ViewerCompletIA({ irmId, onClose }) {
     setOverlayLoading(true)
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      fetch(`/api/predictions/viewer/${irmId}/overlay/${slice}`, { headers })
+      fetch(`${API_BASE}/api/predictions/viewer/${irmId}/overlay/${slice}`, { headers })
         .then(r => r.json())
         .then(d => {
           setOverlaySrc(d.image)

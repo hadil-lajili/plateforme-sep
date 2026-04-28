@@ -4,6 +4,7 @@ import { Brain, Loader, CheckCircle, AlertTriangle } from 'lucide-react'
 export default function SegmentationIA({ irmId, irmPath, onTermine }) {
   const token = localStorage.getItem('token')
   const headers = { Authorization: `Bearer ${token}` }
+  const API_BASE = import.meta.env.VITE_API_URL || ''
   const [loading, setLoading] = useState(false)
   const [resultats, setResultats] = useState(null)
   const [erreur, setErreur] = useState(null)
@@ -12,7 +13,7 @@ export default function SegmentationIA({ irmId, irmPath, onTermine }) {
     setLoading(true)
     setErreur(null)
     try {
-      const res = await fetch(`/api/predictions/segmentation/${irmId}`, {
+      const res = await fetch(`${API_BASE}/api/predictions/segmentation/${irmId}`, {
         method: 'POST', headers
       })
       if (res.ok) {

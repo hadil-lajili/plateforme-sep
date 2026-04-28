@@ -7,6 +7,7 @@ import api from '../../services/api'
 function ViewerInline({ irmId }) {
   const token = localStorage.getItem('token')
   const headers = { Authorization: `Bearer ${token}` }
+  const API_BASE = import.meta.env.VITE_API_URL || ''
   const [nCoupes, setNCoupes] = useState(0)
   const [slice, setSlice] = useState(0)
   const [src, setSrc] = useState(null)
@@ -14,7 +15,7 @@ function ViewerInline({ irmId }) {
   const debounceRef = useRef(null)
 
   useEffect(() => {
-    fetch(`/api/predictions/viewer/${irmId}/info`, { headers })
+    fetch(`${API_BASE}/api/predictions/viewer/${irmId}/info`, { headers })
       .then(r => r.json())
       .then(d => { setNCoupes(d.n_coupes || 0); setSlice(Math.floor((d.n_coupes || 0) / 2)) })
       .catch(() => {})
@@ -25,7 +26,7 @@ function ViewerInline({ irmId }) {
     setLoading(true)
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      fetch(`/api/predictions/viewer/${irmId}/coupe/${slice}`, { headers })
+      fetch(`${API_BASE}/api/predictions/viewer/${irmId}/coupe/${slice}`, { headers })
         .then(r => r.json())
         .then(d => { setSrc(d.image); setLoading(false) })
         .catch(() => setLoading(false))

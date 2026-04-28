@@ -16,6 +16,7 @@ const TABS = [
 function ViewerInline({ irmId }) {
   const token = localStorage.getItem('token')
   const headers = { Authorization: `Bearer ${token}` }
+  const API_BASE = import.meta.env.VITE_API_URL || ''
   const [nCoupes, setNCoupes] = useState(0)
   const [slice, setSlice] = useState(0)
   const [src, setSrc] = useState(null)
@@ -23,7 +24,7 @@ function ViewerInline({ irmId }) {
   const debounceRef = useRef(null)
 
   useEffect(() => {
-    fetch(`/api/predictions/viewer/${irmId}/info`, { headers })
+    fetch(`${API_BASE}/api/predictions/viewer/${irmId}/info`, { headers })
       .then(r => r.json())
       .then(d => { setNCoupes(d.n_coupes || 0); setSlice(Math.floor((d.n_coupes || 0) / 2)) })
       .catch(() => {})
@@ -34,7 +35,7 @@ function ViewerInline({ irmId }) {
     setLoading(true)
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      fetch(`/api/predictions/viewer/${irmId}/coupe/${slice}`, { headers })
+      fetch(`${API_BASE}/api/predictions/viewer/${irmId}/coupe/${slice}`, { headers })
         .then(r => r.json())
         .then(d => { setSrc(d.image); setLoading(false) })
         .catch(() => setLoading(false))
@@ -280,8 +281,9 @@ export default function PatientDetail() {
 
   const lancerSepSain = async (irmId) => {
       setSepSainLoading(true)
+      const API_BASE = import.meta.env.VITE_API_URL || ''
       try {
-        const res = await fetch(`/api/predictions/sep-sain/${irmId}`, {
+        const res = await fetch(`${API_BASE}/api/predictions/sep-sain/${irmId}`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         })
@@ -303,7 +305,7 @@ export default function PatientDetail() {
       setPredErreur(null)
       setPredIrmId(irmId)
       try {
-        const res = await fetch(`/api/predictions/prediction/${irmId}`, {
+        const res = await fetch(`${API_BASE}/api/predictions/prediction/${irmId}`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         })
@@ -321,7 +323,7 @@ export default function PatientDetail() {
       setLstmErreur(null)
       setLstmIrmId(irmId)
       try {
-        const res = await fetch(`/api/predictions/temporal/${irmId}`, {
+        const res = await fetch(`${API_BASE}/api/predictions/temporal/${irmId}`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         })

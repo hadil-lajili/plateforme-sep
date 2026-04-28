@@ -80,7 +80,8 @@ export default function Visualisation3D({ patientId, irmId }) {
 
     try {
       const token = localStorage.getItem('token')
-      const res = await fetch(`/api/predictions/lesions3d/${irmId}`, {
+      const API_BASE = import.meta.env.VITE_API_URL || ''
+      const res = await fetch(`${API_BASE}/api/predictions/lesions3d/${irmId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
 

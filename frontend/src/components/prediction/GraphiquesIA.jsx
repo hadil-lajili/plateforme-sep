@@ -159,6 +159,7 @@ function ComparaisonIRM({ irms, onComparer }) {
 
   const token = localStorage.getItem('token')
   const headers = { Authorization: `Bearer ${token}` }
+  const API_BASE = import.meta.env.VITE_API_URL || ''
 
   const flairIrms = irms.filter(i => i.sequence_type === 'FLAIR')
 
@@ -167,8 +168,8 @@ function ComparaisonIRM({ irms, onComparer }) {
     setLoading(true)
     try {
       const [r1, r2] = await Promise.all([
-        fetch(`/api/predictions/segmentation/${irm1}`, { method: 'POST', headers }),
-        fetch(`/api/predictions/segmentation/${irm2}`, { method: 'POST', headers }),
+        fetch(`${API_BASE}/api/predictions/segmentation/${irm1}`, { method: 'POST', headers }),
+        fetch(`${API_BASE}/api/predictions/segmentation/${irm2}`, { method: 'POST', headers }),
       ])
       const [d1, d2] = await Promise.all([r1.json(), r2.json()])
       setComparaison({ avant: d1, apres: d2 })
