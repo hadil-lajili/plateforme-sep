@@ -551,12 +551,13 @@ async def get_lesions_3d(irm_id: str, current_user=Depends(get_current_user)):
     if not irm:
         raise HTTPException(404, "IRM non trouvée")
 
-    chemin = _resoudre_chemin(irm)
+    chemin, is_tmp = await _resoudre_chemin(irm)
     if not chemin:
         raise HTTPException(404, "Fichier IRM introuvable")
 
     pred = get_pred_model()
     if pred is None:
+        if is_tmp and os.path.exists(chemin): os.unlink(chemin)
         raise HTTPException(503, "Modèle non disponible")
 
     try:
@@ -613,6 +614,8 @@ async def get_lesions_3d(irm_id: str, current_user=Depends(get_current_user)):
         import traceback
         traceback.print_exc()
         raise HTTPException(500, f"Erreur 3D : {str(e)}")
+    finally:
+        if is_tmp and os.path.exists(chemin): os.unlink(chemin)
 
 
 # ══════════════════════════════════════════════════════
@@ -624,13 +627,16 @@ async def viewer_info(irm_id: str, current_user=Depends(get_current_user)):
     irm = await IRMScan.get(irm_id)
     if not irm:
         raise HTTPException(404, "IRM non trouvée")
-    chemin = _resoudre_chemin(irm)
+    chemin, is_tmp = await _resoudre_chemin(irm)
     if not chemin:
         raise HTTPException(404, "Fichier IRM introuvable")
-    import nibabel as nib
-    shape = nib.load(chemin).shape
-    n_coupes = int(shape[2]) if len(shape) >= 3 else 1
-    return {"n_coupes": n_coupes}
+    try:
+        import nibabel as nib
+        shape = nib.load(chemin).shape
+        n_coupes = int(shape[2]) if len(shape) >= 3 else 1
+        return {"n_coupes": n_coupes}
+    finally:
+        if is_tmp and os.path.exists(chemin): os.unlink(chemin)
 
 
 @router.get("/viewer/{irm_id}/coupe/{idx}")
@@ -638,20 +644,23 @@ async def viewer_coupe_originale(irm_id: str, idx: int, current_user=Depends(get
     irm = await IRMScan.get(irm_id)
     if not irm:
         raise HTTPException(404, "IRM non trouvée")
-    chemin = _resoudre_chemin(irm)
+    chemin, is_tmp = await _resoudre_chemin(irm)
     if not chemin:
         raise HTTPException(404, "Fichier IRM introuvable")
-    import numpy as np, io, base64
-    from PIL import Image
-    data = _charger_volume(chemin)
-    n = data.shape[2] if len(data.shape) == 3 else 1
-    idx = max(0, min(idx, n - 1))
-    coupe = _prep_coupe(data, idx, size=256)
-    uint8 = ((coupe - coupe.min()) / (coupe.max() - coupe.min() + 1e-6) * 255).astype(np.uint8)
-    buf = io.BytesIO()
-    Image.fromarray(uint8).save(buf, format='PNG')
-    b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    return {"image": f"data:image/png;base64,{b64}", "coupe": idx}
+    try:
+        import numpy as np, io, base64
+        from PIL import Image
+        data = _charger_volume(chemin)
+        n = data.shape[2] if len(data.shape) == 3 else 1
+        idx = max(0, min(idx, n - 1))
+        coupe = _prep_coupe(data, idx, size=256)
+        uint8 = ((coupe - coupe.min()) / (coupe.max() - coupe.min() + 1e-6) * 255).astype(np.uint8)
+        buf = io.BytesIO()
+        Image.fromarray(uint8).save(buf, format='PNG')
+        b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        return {"image": f"data:image/png;base64,{b64}", "coupe": idx}
+    finally:
+        if is_tmp and os.path.exists(chemin): os.unlink(chemin)
 
 
 @router.get("/viewer/{irm_id}/overlay/{idx}")
@@ -659,16 +668,18 @@ async def viewer_coupe_overlay(irm_id: str, idx: int, current_user=Depends(get_c
     irm = await IRMScan.get(irm_id)
     if not irm:
         raise HTTPException(404, "IRM non trouvée")
-    chemin_t1 = _resoudre_chemin(irm)
+    chemin_t1, t1_tmp = await _resoudre_chemin(irm)
     if not chemin_t1:
         raise HTTPException(404, "Fichier IRM introuvable")
 
     pred = get_pred_model()
     if pred is None:
+        if t1_tmp and os.path.exists(chemin_t1): os.unlink(chemin_t1)
         raise HTTPException(503, "Modèle IA non disponible")
 
     # Auto-sélection T0
     chemin_t0 = chemin_t1
+    t0_tmp = False
     autres = await IRMScan.find(
         IRMScan.patient_id == irm.patient_id,
         IRMScan.sequence_type == irm.sequence_type,
@@ -676,43 +687,48 @@ async def viewer_coupe_overlay(irm_id: str, idx: int, current_user=Depends(get_c
     for candidat in autres:
         if str(candidat.id) == irm_id:
             continue
-        c = _resoudre_chemin(candidat)
+        c, c_tmp = await _resoudre_chemin(candidat)
         if c:
             chemin_t0 = c
+            t0_tmp = c_tmp
             break
 
-    import torch, numpy as np, io, base64
-    from PIL import Image
+    try:
+        import torch, numpy as np, io, base64
+        from PIL import Image
 
-    model, device = pred
-    data_t0 = _charger_volume(chemin_t0)
-    data_t1 = _charger_volume(chemin_t1)
-    n = data_t1.shape[2] if len(data_t1.shape) == 3 else 1
-    idx = max(0, min(idx, n - 1))
+        model, device = pred
+        data_t0 = _charger_volume(chemin_t0)
+        data_t1 = _charger_volume(chemin_t1)
+        n = data_t1.shape[2] if len(data_t1.shape) == 3 else 1
+        idx = max(0, min(idx, n - 1))
 
-    coupe_t0 = _prep_coupe(data_t0, idx, size=256)
-    coupe_t1 = _prep_coupe(data_t1, idx, size=256)
-    tensor = torch.tensor(np.stack([coupe_t0, coupe_t1])).unsqueeze(0).to(device)
+        coupe_t0 = _prep_coupe(data_t0, idx, size=256)
+        coupe_t1 = _prep_coupe(data_t1, idx, size=256)
+        tensor = torch.tensor(np.stack([coupe_t0, coupe_t1])).unsqueeze(0).to(device)
 
-    with torch.no_grad():
-        seg_out, _ = model(tensor)
+        with torch.no_grad():
+            seg_out, _ = model(tensor)
 
-    seg_np = seg_out.squeeze().cpu().numpy()
-    t1_uint8 = ((coupe_t1 - coupe_t1.min()) / (coupe_t1.max() - coupe_t1.min() + 1e-6) * 255).astype(np.uint8)
-    masque_bin = (seg_np > 0.5).astype(np.uint8)
-    n_lesions = int(masque_bin.sum())
+        seg_np = seg_out.squeeze().cpu().numpy()
+        t1_uint8 = ((coupe_t1 - coupe_t1.min()) / (coupe_t1.max() - coupe_t1.min() + 1e-6) * 255).astype(np.uint8)
+        masque_bin = (seg_np > 0.5).astype(np.uint8)
+        n_lesions = int(masque_bin.sum())
 
-    img_rgb = np.stack([t1_uint8, t1_uint8, t1_uint8], axis=-1)
-    if n_lesions > 0:
-        img_rgb[:, :, 0] = np.where(masque_bin == 1, 255, t1_uint8)
-        img_rgb[:, :, 1] = np.where(masque_bin == 1, 0, t1_uint8)
-        img_rgb[:, :, 2] = np.where(masque_bin == 1, 0, t1_uint8)
+        img_rgb = np.stack([t1_uint8, t1_uint8, t1_uint8], axis=-1)
+        if n_lesions > 0:
+            img_rgb[:, :, 0] = np.where(masque_bin == 1, 255, t1_uint8)
+            img_rgb[:, :, 1] = np.where(masque_bin == 1, 0, t1_uint8)
+            img_rgb[:, :, 2] = np.where(masque_bin == 1, 0, t1_uint8)
 
-    buf = io.BytesIO()
-    Image.fromarray(img_rgb.astype(np.uint8)).save(buf, format='PNG')
-    b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    return {
-        "image": f"data:image/png;base64,{b64}",
-        "coupe": idx,
-        "n_lesions": n_lesions
-    }
+        buf = io.BytesIO()
+        Image.fromarray(img_rgb.astype(np.uint8)).save(buf, format='PNG')
+        b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        return {
+            "image": f"data:image/png;base64,{b64}",
+            "coupe": idx,
+            "n_lesions": n_lesions
+        }
+    finally:
+        if t1_tmp and os.path.exists(chemin_t1): os.unlink(chemin_t1)
+        if t0_tmp and chemin_t0 != chemin_t1 and os.path.exists(chemin_t0): os.unlink(chemin_t0)
